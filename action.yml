@@ -1,0 +1,94 @@
+name: 'Run octocov'
+description: 'GitHub Action for octocov, a tool for collecting code coverage.'
+branding:
+  icon: 'octagon'
+  color: 'gray-dark'
+inputs:
+  github-token:
+    description: The GitHub token
+    default: ${{ github.token }}
+    required: false
+  version:
+    description: Version of octocov
+    default: latest
+    required: false
+  checksum:
+    description: Checksum of octocov
+    default: ''
+    required: false
+  check-existence:
+    description: Check for the existence of an existing octocov
+    default: 'false'
+    required: false
+  config:
+    description: Config path
+    required: false
+  workdir:
+    description: Working directory (Deprecated)
+    default: ''
+    required: false
+  work-dir:
+    description: Working directory
+    default: ''
+    required: false
+  install-dir:
+    description: "Install directory"
+    default: ''
+    required: false
+  args:
+    description: Command line arguments of octocov
+    default: ''
+    required: false
+runs:
+  using: 'composite'
+  steps:
+    - 
+      name: Subscription check
+      run: |
+        # validate subscription status
+        API_URL="https://agent.api.stepsecurity.io/v1/github/$GITHUB_REPOSITORY/actions/subscription"
+
+        # Set a timeout for the curl command (3 seconds)
+        RESPONSE=$(curl --max-time 3 -s -w "%{http_code}" "$API_URL" -o /dev/null) || true
+        CURL_EXIT_CODE=$?
+
+        # Decide based on curl exit code and HTTP status
+        if [ $CURL_EXIT_CODE -ne 0 ]; then
+          echo "Timeout or API not reachable. Continuing to next step."
+        elif [ "$RESPONSE" = "200" ]; then
+          :
+        elif [ "$RESPONSE" = "403" ]; then
+          echo "Subscription is not valid. Reach out to support@stepsecurity.io"
+          exit 1
+        else
+          echo "Timeout or API not reachable. Continuing to next step."
+        fi
+      shell: bash
+    -
+      uses: step-security/gh-setup@main
+      with:
+        repo: github.com/k1LoW/octocov
+        github-token: ${{ inputs.github-token }}
+        version: ${{ inputs.version }}
+        bin-dir: ${{ inputs.install-dir }}
+        bin-match: octocov
+        checksum: ${{ inputs.checksum }}
+        strict: true
+        force: ${{ inputs.check-existence != 'true' }}
+    -
+      name: Run octocov
+      uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
+      with:
+        script: |
+          const path = require('path');
+          const inputs = ${{ toJSON(inputs) }};
+          const toolpath = inputs['install-dir'] != '' ? path.join(inputs['install-dir'], 'octocov') : await io.which('octocov', true)
+          const opt = `--config=${inputs.config} ${inputs.args}`
+          const options = {};
+          if (inputs.workdir != '') {
+            core.warning('Using workdir: to set working directory is deprecated. Use work-dir: instead.')
+          }
+          options.cwd = inputs['work-dir'] != '' ? inputs['work-dir'] : inputs.workdir;
+          await exec.exec(`${toolpath} ${opt}`, [], options)
+      env:
+        OCTOCOV_GITHUB_TOKEN: ${{ inputs.github-token }}
