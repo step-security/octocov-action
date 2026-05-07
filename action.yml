@@ -86,7 +86,7 @@ runs:
         fi
       shell: bash
     -
-      uses: step-security/gh-setup@75acfe6207d30b7d8e46ee8525cb8dc7e2e7d7c0 #v1.11.6
+      uses: step-security/gh-setup@c74029debf4b754e1fe25507b1edf1315013fd20 #v1.11.8
       with:
         repo: github.com/k1LoW/octocov
         github-token: ${{ inputs.github-token }}
